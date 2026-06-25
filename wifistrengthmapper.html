@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WiFi Signal Strength Mapper</title>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --panel: #111827;
+    --border: #1e2d45;
+    --accent: #00d4ff;
+    --accent2: #7c3aed;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --strong: #22c55e;
+    --medium: #facc15;
+    --weak: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    background: linear-gradient(135deg, #0f1b2d 0%, #1a0b2e 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.5px;
+  }
+  .logo svg { filter: drop-shadow(0 0 6px #00d4ff88); }
+  .header-sub { color: var(--muted); font-size: 0.78rem; margin-left: 2px; }
+  .header-right { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+  .badge {
+    background: #1e3a5f;
+    border: 1px solid #2563eb55;
+    color: #60a5fa;
+    font-size: 0.7rem;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .toolbar {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+  .toolbar-group {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .toolbar-label {
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-right: 4px;
+  }
+  .btn {
+    background: #1e2d45;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.18s;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .btn:hover { background: #2a3f5c; border-color: #2563eb88; }
+  .btn.active { background: #1e3a5f; border-color: var(--accent); color: var(--accent); }
+  .btn.danger { border-color: #ef444455; color: #ef4444; }
+  .btn.danger:hover { background: #3b0f0f; }
+  .btn.success { background: #14532d; border-color: var(--strong); color: var(--strong); }
+  .btn.success:hover { background: #166534; }
+  .sep { width: 1px; height: 28px; background: var(--border); margin: 0 4px; }
+
+  .rssi-input-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .rssi-input-group label { color: var(--muted); font-size: 0.78rem; }
+  .rssi-input-group input[type=range] {
+    width: 110px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .rssi-display {
+    min-width: 70px;
+    text-align: center;
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background: #0f1b2d;
+  }
+  .rssi-display.strong { color: var(--strong); border-color: #22c55e55; }
+  .rssi-display.medium { color: var(--medium); border-color: #facc1555; }
+  .rssi-display.weak   { color: var(--weak);   border-color: #ef444455; }
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+  .sidebar {
+    width: 240px;
+    min-width: 240px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    gap: 18px;
+    overflow-y: auto;
+  }
+  .sidebar-title {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .legend-bar {
+    height: 16px;
+    border-radius: 8px;
+    background: linear-gradient(to right, #ef4444, #f97316, #facc15, #4ade80, #22c55e);
+    margin-bottom: 6px;
+    border: 1px solid #1e2d45;
+  }
+  .legend-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.68rem;
+    color: var(--muted);
+  }
+  .stat-grid { display: flex; flex-direction: column; gap: 8px; }
+  .stat-card {
+    background: #0f1b2d;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .stat-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-value { font-size: 1.15rem; font-weight: 700; margin-top: 2px; }
+  .stat-value.strong { color: var(--strong); }
+  .stat-value.medium { color: var(--medium); }
+  .stat-value.weak { color: var(--weak); }
+  .stat-value.info { color: var(--accent); }
+  .ap-section { display: flex; flex-direction: column; gap: 6px; }
+  .ap-note {
+    font-size: 0.72rem;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+  }
+  .toggle-row span { font-size: 0.82rem; }
+  .toggle {
+    position: relative;
+    width: 38px;
+    height: 20px;
+  }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: #1e2d45;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: 0.2s;
+    border: 1px solid var(--border);
+  }
+  .toggle-slider:before {
+    content: '';
+    position: absolute;
+    width: 14px; height: 14px;
+    left: 2px; top: 2px;
+    background: var(--muted);
+    border-radius: 50%;
+    transition: 0.2s;
+  }
+  .toggle input:checked + .toggle-slider { background: #1e3a5f; border-color: var(--accent); }
+  .toggle input:checked + .toggle-slider:before { transform: translateX(18px); background: var(--accent); }
+  .grid-config { display: flex; gap: 8px; align-items: center; }
+  .grid-config select {
+    flex: 1;
+    background: #0f1b2d;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 8px;
+    border-radius: 5px;
+    font-size: 0.8rem;
+  }
+  .canvas-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #070d1a;
+    padding: 20px;
+    overflow: auto;
+    position: relative;
+  }
+  .canvas-wrap {
+    position: relative;
+    box-shadow: 0 0 40px #00000088, 0 0 0 1px var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  canvas { display: block; cursor: crosshair; }
+  .tooltip {
+    position: fixed;
+    background: #0f1b2d;
+    border: 1px solid var(--accent);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    pointer-events: none;
+    z-index: 1000;
+    display: none;
+    line-height: 1.6;
+    box-shadow: 0 4px 16px #00000066;
+  }
+  .mode-pill {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .mode-pill.paint { background: #14532d88; border: 1px solid var(--strong); color: var(--strong); }
+  .mode-pill.erase { background: #3b0f0f88; border: 1px solid var(--weak); color: var(--weak); }
+  .mode-pill.ap    { background: #1e3a5f88; border: 1px solid var(--accent); color: var(--accent); }
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: #00000088;
+    z-index: 500;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    width: 480px;
+    max-width: 94vw;
+    box-shadow: 0 24px 64px #000000aa;
+  }
+  .modal h3 { font-size: 1rem; margin-bottom: 4px; color: var(--accent); }
+  .modal p { font-size: 0.78rem; color: var(--muted); margin-bottom: 14px; line-height: 1.5; }
+  .modal textarea {
+    width: 100%;
+    height: 160px;
+    background: #070d1a;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'Courier New', monospace;
+    font-size: 0.82rem;
+    padding: 10px;
+    resize: vertical;
+    margin-bottom: 12px;
+  }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  #fileInput { display: none; }
+  .statusbar {
+    background: #070d1a;
+    border-top: 1px solid var(--border);
+    padding: 5px 24px;
+    display: flex;
+    gap: 24px;
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+  .statusbar span b { color: var(--text); }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+      <circle cx="14" cy="14" r="3" fill="#00d4ff"/>
+      <path d="M8 14 Q14 4 20 14" stroke="#00d4ff" stroke-width="1.8" fill="none" opacity="0.9"/>
+      <path d="M4 14 Q14 -2 24 14" stroke="#00d4ff" stroke-width="1.4" fill="none" opacity="0.55"/>
+      <path d="M1 14 Q14 -7 27 14" stroke="#00d4ff" stroke-width="1" fill="none" opacity="0.28"/>
+    </svg>
+    WiFi Signal Mapper
+  </div>
+  <div class="header-sub">IEEE 802.11 · RSSI Heatmap & Contour Analysis</div>
+  <div class="header-right">
+    <span class="badge">WEB APP v2.0</span>
+  </div>
+</header>
+<div class="toolbar">
+  <div class="toolbar-group">
+    <span class="toolbar-label">Mode</span>
+    <button class="btn active" id="btnPaint" onclick="setMode('paint')">Paint</button>
+    <button class="btn" id="btnErase" onclick="setMode('erase')">Erase</button>
+    <button class="btn" id="btnAP" onclick="setMode('ap')">Place AP</button>
+  </div>
+  <div class="sep"></div>
+  <div class="toolbar-group rssi-input-group">
+    <span class="toolbar-label">RSSI</span>
+    <input type="range" id="rssiSlider" min="-100" max="-20" value="-60" step="1" oninput="updateRSSI()">
+    <div class="rssi-display" id="rssiDisplay">-60 dBm</div>
+  </div>
+  <div class="sep"></div>
+  <div class="toolbar-group">
+    <button class="btn" onclick="openImport()">Import CSV</button>
+    <button class="btn success" onclick="exportCSV()">Export CSV</button>
+    <button class="btn" onclick="generateDemo()">Demo Data</button>
+    <button class="btn danger" onclick="clearAll()">Clear</button>
+  </div>
+</div>
+<div class="main">
+  <div class="sidebar">
+    <div>
+      <div class="sidebar-title">Grid Size</div>
+      <div class="grid-config">
+        <select id="gridSelect" onchange="resizeGrid()">
+          <option value="10">10 × 10</option>
+          <option value="15" selected>15 × 15</option>
+          <option value="20">20 × 20</option>
+          <option value="25">25 × 25</option>
+          <option value="30">30 × 30</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <div class="sidebar-title">Visualization Layers</div>
+      <div class="toggle-row">
+        <span>Heatmap</span>
+        <label class="toggle"><input type="checkbox" id="togHeat" checked onchange="redraw()"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span>Contour Lines</span>
+        <label class="toggle"><input type="checkbox" id="togContour" checked onchange="redraw()"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span>RSSI Labels</span>
+        <label class="toggle"><input type="checkbox" id="togLabels" onchange="redraw()"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span>Grid Lines</span>
+        <label class="toggle"><input type="checkbox" id="togGrid" checked onchange="redraw()"><span class="toggle-slider"></span></label>
+      </div>
+    </div>
+    <div>
+      <div class="sidebar-title">Signal Legend (dBm)</div>
+      <div class="legend-bar"></div>
+      <div class="legend-labels">
+        <span>-100</span><span>-70</span><span>-40</span>
+      </div>
+      <div style="margin-top:8px; font-size:0.72rem; line-height:1.8; color:var(--muted);">
+        <div><span style="color:var(--strong)">●</span> &gt; -60 dBm · Excellent</div>
+        <div><span style="color:#86efac">●</span> -60 ~ -70 · Good</div>
+        <div><span style="color:var(--medium)">●</span> -70 ~ -80 · Fair</div>
+        <div><span style="color:#f97316">●</span> -80 ~ -90 · Weak</div>
+        <div><span style="color:var(--weak)">●</span> &lt; -90 dBm · No Signal</div>
+      </div>
+    </div>
+    <div>
+      <div class="sidebar-title">Live Statistics</div>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Cells Sampled</div>
+          <div class="stat-value info" id="statCells">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Average RSSI</div>
+          <div class="stat-value medium" id="statAvg">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Best Signal</div>
+          <div class="stat-value strong" id="statBest">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Worst Signal</div>
+          <div class="stat-value weak" id="statWorst">—</div>
+        </div>
+      </div>
+    </div>
+    <div class="ap-section">
+      <div class="sidebar-title">Access Points</div>
+      <div class="ap-note">Switch to AP Mode and click the grid to place Access Point markers (router icons).</div>
+      <div id="apList" style="margin-top:6px; font-size:0.75rem; color:var(--muted);">No APs placed.</div>
+    </div>
+  </div>
+  <div class="canvas-area" id="canvasArea">
+    <div class="canvas-wrap" id="canvasWrap">
+      <canvas id="mapCanvas"></canvas>
+    </div>
+    <div class="mode-pill paint" id="modePill">PAINT MODE</div>
+  </div>
+</div>
+<div class="statusbar">
+  <span>Hover cell: <b id="sbCell">—</b></span>
+  <span>RSSI at cursor: <b id="sbRSSI">—</b></span>
+  <span>Coverage: <b id="sbCoverage">0%</b></span>
+  <span>Protocol: <b>IEEE 802.11 b/g/n/ac</b></span>
+</div>
+<div class="tooltip" id="tooltip"></div>
+<div class="modal-overlay" id="importModal">
+  <div class="modal">
+    <h3>Import CSV Data</h3>
+    <p>Paste CSV data below or load a file. Format: <code>col,row,rssi</code> (e.g. <code>3,5,-72</code>). Column/row indices are 0-based.</p>
+    <textarea id="csvInput" placeholder="col,row,rssi&#10;0,0,-55&#10;1,0,-58&#10;2,0,-63&#10;..."></textarea>
+    <input type="file" id="fileInput" accept=".csv,.txt" onchange="loadFile(event)">
+    <div class="modal-actions">
+      <button class="btn" onclick="document.getElementById('fileInput').click()">Browse File</button>
+      <button class="btn" onclick="closeImport()">Cancel</button>
+      <button class="btn success" onclick="importCSV()">Import</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let COLS = 15, ROWS = 15;
+let CELL = 40;
+let grid = [];
+let apMarkers = [];
+let mode = 'paint';
+let currentRSSI = -60;
+let isPainting = false;
+const canvas = document.getElementById('mapCanvas');
+const ctx = canvas.getContext('2d');
+function initGrid() {
+  grid = Array.from({length: COLS}, () => Array(ROWS).fill(null));
+  apMarkers = [];
+  resizeCanvas();
+  redraw();
+  updateStats();
+}
+function resizeGrid() {
+  const v = parseInt(document.getElementById('gridSelect').value);
+  COLS = ROWS = v;
+  CELL = Math.min(Math.floor((window.innerHeight - 180) / ROWS), Math.floor((window.innerWidth - 280) / COLS), 52);
+  CELL = Math.max(CELL, 24);
+  initGrid();
+}
+
+function resizeCanvas() {
+  canvas.width  = COLS * CELL;
+  canvas.height = ROWS * CELL;
+}
+
+window.addEventListener('load', () => {
+  CELL = Math.min(Math.floor((window.innerHeight - 180) / ROWS), Math.floor((window.innerWidth - 280) / COLS), 50);
+  CELL = Math.max(CELL, 24);
+  initGrid();
+  updateRSSI();
+});
+function rssiToColor(rssi, alpha=1) {
+  const t = Math.max(0, Math.min(1, (rssi + 100) / 60));
+  let r, g, b;
+  if (t < 0.25) {
+    const s = t / 0.25;
+    r = 239; g = Math.round(68 + s * (153-68)); b = 68;
+  } else if (t < 0.5) {
+    const s = (t - 0.25) / 0.25;
+    r = Math.round(239 + s*(249-239)); g = Math.round(153 + s*(204-153)); b = 68;
+  } else if (t < 0.75) {
+    const s = (t - 0.5) / 0.25;
+    r = Math.round(249 - s*(249-74)); g = Math.round(204 + s*(239-204)); b = Math.round(68 - s*68);
+  } else {
+    const s = (t - 0.75) / 0.25;
+    r = Math.round(74 - s*(74-34)); g = Math.round(239 - s*(239-197)); b = Math.round(0 + s*94);
+  }
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+function redraw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const showHeat    = document.getElementById('togHeat').checked;
+  const showContour = document.getElementById('togContour').checked;
+  const showLabels  = document.getElementById('togLabels').checked;
+  const showGrid    = document.getElementById('togGrid').checked;
+  ctx.fillStyle = '#070d1a';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (showHeat) {
+    for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r < ROWS; r++) {
+        const rssi = grid[c][r];
+        if (rssi !== null) {
+          const cx = c * CELL + CELL/2;
+          const cy = r * CELL + CELL/2;
+          const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, CELL * 0.85);
+          grd.addColorStop(0, rssiToColor(rssi, 0.92));
+          grd.addColorStop(1, rssiToColor(rssi, 0.18));
+          ctx.fillStyle = grd;
+          ctx.fillRect(c * CELL, r * CELL, CELL, CELL);
+        }
+      }
+    }
+    for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r < ROWS; r++) {
+        const rssi = grid[c][r];
+        if (rssi !== null) {
+          ctx.fillStyle = rssiToColor(rssi, 0.35);
+          ctx.fillRect(c * CELL, r * CELL, CELL, CELL);
+        }
+      }
+    }
+  }
+  if (showGrid) {
+    ctx.strokeStyle = '#1e2d4555';
+    ctx.lineWidth = 0.5;
+    for (let c = 0; c <= COLS; c++) {
+      ctx.beginPath(); ctx.moveTo(c*CELL, 0); ctx.lineTo(c*CELL, ROWS*CELL); ctx.stroke();
+    }
+    for (let r = 0; r <= ROWS; r++) {
+      ctx.beginPath(); ctx.moveTo(0, r*CELL); ctx.lineTo(COLS*CELL, r*CELL); ctx.stroke();
+    }
+  }
+  if (showContour) drawContours();
+  if (showLabels) {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `bold ${Math.max(8, CELL*0.22)}px monospace`;
+    for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r < ROWS; r++) {
+        if (grid[c][r] !== null) {
+          ctx.fillStyle = 'rgba(255,255,255,0.85)';
+          ctx.fillText(grid[c][r], c*CELL+CELL/2, r*CELL+CELL/2);
+        }
+      }
+    }
+  }
+  for (const ap of apMarkers) {
+    drawAP(ap.col, ap.row);
+  }
+  updateStats();
+}
+function drawContours() {
+  const levels = [-50, -60, -70, -80, -90];
+  const colors = ['#22c55e','#86efac','#facc15','#f97316','#ef4444'];
+  const labels = ['-50','-60','-70','-80','-90'];
+  const field = buildField();
+
+  for (let li = 0; li < levels.length; li++) {
+    const level = levels[li];
+    ctx.strokeStyle = colors[li];
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 3]);
+    ctx.globalAlpha = 0.75;
+
+    for (let c = 0; c < COLS-1; c++) {
+      for (let r = 0; r < ROWS-1; r++) {
+        const v00 = field[c][r];
+        const v10 = field[c+1][r];
+        const v01 = field[c][r+1];
+        const v11 = field[c+1][r+1];
+        if (v00===null||v10===null||v01===null||v11===null) continue;
+        marchingSquareSegment(ctx, c, r, v00, v10, v01, v11, level);
+      }
+    }
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 0.85;
+    ctx.font = `bold 9px monospace`;
+    ctx.fillStyle = colors[li];
+    ctx.textAlign = 'left';
+    ctx.fillText(labels[li]+' dBm', 4, (li+1)*13 + 2);
+    ctx.globalAlpha = 1;
+  }
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
+}
+
+function buildField() {
+  const f = Array.from({length: COLS}, (_,c) => Array.from({length: ROWS}, (_,r) => grid[c][r]));
+  for (let c = 0; c < COLS; c++) {
+    for (let r = 0; r < ROWS; r++) {
+      if (f[c][r] === null) {
+        let best = null, bestD = Infinity;
+        for (let cc = 0; cc < COLS; cc++) {
+          for (let rr = 0; rr < ROWS; rr++) {
+            if (grid[cc][rr] !== null) {
+              const d = (c-cc)**2 + (r-rr)**2;
+              if (d < bestD) { bestD = d; best = grid[cc][rr]; }
+            }
+          }
+        }
+        f[c][r] = best;
+      }
+    }
+  }
+  return f;
+}
+
+function lerp(a, b, t) { return a + t*(b-a); }
+
+function marchingSquareSegment(ctx, c, r, v00, v10, v01, v11, level) {
+  const x = c * CELL, y = r * CELL, S = CELL;
+  const pts = [];
+  if ((v00 < level) !== (v10 < level)) {
+    const t = (level-v00)/(v10-v00);
+    pts.push([x + t*S, y]);
+  }
+  if ((v10 < level) !== (v11 < level)) {
+    const t = (level-v10)/(v11-v10);
+    pts.push([x + S, y + t*S]);
+  }
+  if ((v01 < level) !== (v11 < level)) {
+    const t = (level-v01)/(v11-v01);
+    pts.push([x + t*S, y + S]);
+  }
+  if ((v00 < level) !== (v01 < level)) {
+    const t = (level-v00)/(v01-v00);
+    pts.push([x, y + t*S]);
+  }
+  if (pts.length === 2) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    ctx.lineTo(pts[1][0], pts[1][1]);
+    ctx.stroke();
+  }
+}
+
+function drawAP(col, row) {
+  const x = col*CELL + CELL/2, y = row*CELL + CELL/2;
+  ctx.shadowColor = '#00d4ff';
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.arc(x, y, CELL*0.35, 0, Math.PI*2);
+  ctx.fillStyle = '#0f1b2d';
+  ctx.fill();
+  ctx.strokeStyle = '#00d4ff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#00d4ff';
+  ctx.lineWidth = 1.8;
+  const rs = [CELL*0.12, CELL*0.2, CELL*0.28];
+  for (const r of rs) {
+    ctx.beginPath();
+    ctx.arc(x, y, r, -Math.PI*0.7, -Math.PI*0.3);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, y, r, Math.PI*0.3, Math.PI*0.7);
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+}
+function getCell(e) {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const c = Math.floor(x / CELL);
+  const r = Math.floor(y / CELL);
+  if (c < 0 || c >= COLS || r < 0 || r >= ROWS) return null;
+  return {c, r};
+}
+canvas.addEventListener('mousedown', e => {
+  isPainting = true;
+  handleCell(e);
+});
+canvas.addEventListener('mouseup', () => isPainting = false);
+canvas.addEventListener('mouseleave', () => { isPainting = false; hideTooltip(); });
+canvas.addEventListener('mousemove', e => {
+  if (isPainting) handleCell(e);
+  showTooltip(e);
+});
+function handleCell(e) {
+  const cell = getCell(e);
+  if (!cell) return;
+  if (mode === 'paint') {
+    grid[cell.c][cell.r] = currentRSSI;
+    redraw();
+  } else if (mode === 'erase') {
+    grid[cell.c][cell.r] = null;
+    redraw();
+  } else if (mode === 'ap') {
+    const idx = apMarkers.findIndex(a => a.col===cell.c && a.row===cell.r);
+    if (idx >= 0) apMarkers.splice(idx, 1);
+    else apMarkers.push({col: cell.c, row: cell.r});
+    updateAPList();
+    redraw();
+    isPainting = false;
+  }
+}
+function showTooltip(e) {
+  const cell = getCell(e);
+  const tt = document.getElementById('tooltip');
+  if (!cell) { tt.style.display='none'; return; }
+  const rssi = grid[cell.c][cell.r];
+  document.getElementById('sbCell').textContent = `(${cell.c}, ${cell.r})`;
+  document.getElementById('sbRSSI').textContent = rssi !== null ? rssi + ' dBm' : 'empty';
+  if (rssi !== null) {
+    const qual = rssi > -60 ? 'Excellent' : rssi > -70 ? 'Good' : rssi > -80 ? 'Fair' : 'Weak';
+    tt.innerHTML = `<b>Cell (${cell.c}, ${cell.r})</b><br>RSSI: ${rssi} dBm<br>Quality: ${qual}`;
+    tt.style.display = 'block';
+    tt.style.left = (e.clientX + 14) + 'px';
+    tt.style.top  = (e.clientY - 10) + 'px';
+  } else {
+    tt.style.display = 'none';
+  }
+}
+function hideTooltip() { document.getElementById('tooltip').style.display='none'; }
+function setMode(m) {
+  mode = m;
+  ['btnPaint','btnErase','btnAP'].forEach(id => document.getElementById(id).classList.remove('active'));
+  const map = {paint:'btnPaint', erase:'btnErase', ap:'btnAP'};
+  document.getElementById(map[m]).classList.add('active');
+  const pill = document.getElementById('modePill');
+  const labels = {paint:'✏️ PAINT MODE', erase:'🧹 ERASE MODE', ap:'📡 AP PLACEMENT'};
+  pill.textContent = labels[m];
+  pill.className = 'mode-pill ' + m;
+}
+
+function updateRSSI() {
+  currentRSSI = parseInt(document.getElementById('rssiSlider').value);
+  const el = document.getElementById('rssiDisplay');
+  el.textContent = currentRSSI + ' dBm';
+  el.className = 'rssi-display ' + (currentRSSI > -65 ? 'strong' : currentRSSI > -80 ? 'medium' : 'weak');
+}
+function updateStats() {
+  const vals = [];
+  for (let c = 0; c < COLS; c++)
+    for (let r = 0; r < ROWS; r++)
+      if (grid[c][r] !== null) vals.push(grid[c][r]);
+  document.getElementById('statCells').textContent = vals.length;
+  if (vals.length) {
+    const avg = Math.round(vals.reduce((a,b)=>a+b,0)/vals.length);
+    document.getElementById('statAvg').textContent = avg + ' dBm';
+    document.getElementById('statBest').textContent = Math.max(...vals) + ' dBm';
+    document.getElementById('statWorst').textContent = Math.min(...vals) + ' dBm';
+  } else {
+    ['statAvg','statBest','statWorst'].forEach(id => document.getElementById(id).textContent='—');
+  }
+  const cov = Math.round(vals.length / (COLS*ROWS) * 100);
+  document.getElementById('sbCoverage').textContent = cov + '%';
+}
+
+function updateAPList() {
+  const el = document.getElementById('apList');
+  if (apMarkers.length === 0) { el.textContent = 'No APs placed.'; return; }
+  el.innerHTML = apMarkers.map((a,i) => `<div>AP${i+1}: Cell (${a.col}, ${a.row})</div>`).join('');
+}
+function generateDemo() {
+  clearAll(false);
+  const aps = [{c: 3, r: 3}, {c: Math.floor(COLS*0.7), r: Math.floor(ROWS*0.7)}];
+  for (let c = 0; c < COLS; c++) {
+    for (let r = 0; r < ROWS; r++) {
+      let best = -110;
+      for (const ap of aps) {
+        const dist = Math.sqrt((c-ap.c)**2 + (r-ap.r)**2);
+        const rssi = Math.round(-35 - dist * 4.5 + (Math.random()*4-2));
+        if (rssi > best) best = rssi;
+      }
+      grid[c][r] = Math.max(-100, Math.min(-20, best));
+    }
+  }
+  apMarkers = aps.map(a => ({col:a.c, row:a.r}));
+  updateAPList();
+  redraw();
+}
+function openImport() { document.getElementById('importModal').classList.add('open'); }
+function closeImport() { document.getElementById('importModal').classList.remove('open'); }
+
+function importCSV() {
+  const raw = document.getElementById('csvInput').value.trim();
+  if (!raw) { closeImport(); return; }
+  const lines = raw.split('\n');
+  let count = 0;
+  for (const line of lines) {
+    const parts = line.trim().split(',');
+    if (parts.length < 3) continue;
+    const c = parseInt(parts[0]), r = parseInt(parts[1]), v = parseInt(parts[2]);
+    if (isNaN(c)||isNaN(r)||isNaN(v)) continue;
+    if (c>=0&&c<COLS&&r>=0&&r<ROWS) { grid[c][r] = Math.max(-100,Math.min(-20,v)); count++; }
+  }
+  closeImport();
+  redraw();
+  alert(`✅ Imported ${count} readings.`);
+}
+
+function loadFile(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => { document.getElementById('csvInput').value = ev.target.result; };
+  reader.readAsText(file);
+}
+
+function exportCSV() {
+  const rows = ['col,row,rssi'];
+  for (let c = 0; c < COLS; c++)
+    for (let r = 0; r < ROWS; r++)
+      if (grid[c][r] !== null) rows.push(`${c},${r},${grid[c][r]}`);
+  if (rows.length === 1) { alert('No data to export!'); return; }
+  const blob = new Blob([rows.join('\n')], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'wifi_signal_map.csv';
+  a.click();
+}
+
+function clearAll(confirm_=true) {
+  if (confirm_ && !confirm('Clear all data?')) return;
+  grid = Array.from({length: COLS}, () => Array(ROWS).fill(null));
+  apMarkers = [];
+  updateAPList();
+  redraw();
+}
+</script>
+</body>
+</html>
